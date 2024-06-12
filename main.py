@@ -1,9 +1,9 @@
 import os
-from urllib.parse import urlencode
-
-import telebot
-from pytube import YouTube
 import requests
+import telebot
+from urllib.parse import urlencode
+from pytube import YouTube
+from moviepy.editor import *
 
 token = 'TOKEN'  # Your telegram bot token
 google_api_token = 'google-api-token'  # It can be anything, it doesn't matter
@@ -31,18 +31,24 @@ def start(message):
 @bot.message_handler(content_types=['text'])
 def download(message):
     if message.from_user.id not in users:
-        mess = message.text.replace(' ', '')
-        if not mess.startswith('https://'):
-            mess = 'https://' + mess
-        bot.send_message(message.chat.id,
+        answer = bot.send_message(message.chat.id,
                          translate('The download has started, please wait a bit...', message.from_user.language_code))
         try:
             users.append(message.from_user.id)
-            video = YouTube(mess).streams.filter(progressive=True, file_extension='mp4').order_by(
-                'resolution').desc().first().download()
+            vid = YouTube(message.text)
+            video = vid.streams.filter(progressive=False, mime_type='video/mp4').order_by('resolution').last().download(filename='input.mp4')
+            audio = vid.streams.filter(mime_type='audio/mp4').last().download(filename='input_audio.mp4')
+            vc = VideoFileClip('input.mp4')
+            ac = AudioFileClip('input_audio.mp4')
+            new_audio_clip = CompositeAudioClip([ac])
+            vc.audio = new_audio_clip
+            vc.write_videofile('output.mp4')
             with open(video, 'rb') as v:
-                bot.send_video(message.chat.id, v)
-                os.remove(video)
+                bot.send_document(message.chat.id, v)
+            os.remove('input.mp4')
+            os.remove('input_audio.mp4')
+            os.remove('output.mp4')
+            bot.delete_message(message.chat.id, answer.id)
             users.remove(message.from_user.id)
         except Exception:
             os.remove(video)
